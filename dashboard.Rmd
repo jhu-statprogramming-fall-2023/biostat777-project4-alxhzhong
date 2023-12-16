@@ -282,8 +282,179 @@ county_transit %>%
 
 
 
-Static 2
+Los Angeles {data-navmenu="Most-Used Modalities"}
 ==================
+
+```{r find-first-second, include=FALSE}
+find_max <- function(data, yr){
+  yr = as.character(yr)
+  data %>% 
+    select(NAME, contains(yr), -contains("perc"), -contains("workers")) %>% 
+    pivot_longer(contains(yr), names_to = "transit_type") %>% 
+    group_by(NAME) %>%
+    slice_max(value, with_ties = FALSE) %>% 
+    ungroup() %>% 
+    mutate(transit_type = case_when(is.na(value) ~ NA, 
+                                    .default = str_replace(transit_type, "_20\\d{2}", "")),
+           transit_type = factor(transit_type, 
+                                 levels = c("car_users", "work_from_home", "transit_users"),
+                                 labels = c("Car", "Work from home", "Public transportation")
+                                 ))
+}
+
+find_second <- function(data, yr){
+  yr = as.character(yr)
+  long_data <- data %>% 
+    select(NAME, contains(yr), -contains("perc"), -contains("workers")) %>% 
+    pivot_longer(contains(yr), names_to = "transit_type") %>% 
+    mutate(transit_type = str_replace(transit_type, "_20\\d{2}", ""),
+           transit_type = factor(transit_type, 
+                                 levels = c("car_users", "work_from_home", "transit_users"),
+                                 labels = c("Car", "Work from home", "Public transportation")
+                                 ))
+  max_data <- find_max(data, yr) %>% 
+    st_drop_geometry()
+  long_data %>%
+    anti_join(max_data, by = join_by(NAME, transit_type)) %>% 
+    group_by(NAME) %>%
+    slice_max(value, with_ties = FALSE) %>% 
+    ungroup() %>% 
+    mutate(transit_type = case_when(is.na(value) ~ NA, 
+                                    .default = transit_type),
+           )
+}
+
+```
+
+Column
+------------------
+
+### First place
+
+```{r}
+la_max_2019 <- find_max(la_transit, 2019) %>% 
+  ggplot(aes(fill = transit_type)) +
+    geom_sf(color = "black") +
+    coord_sf(xlim = c(-119.0, -117.6), ylim = c(33.6, 34.9)) +
+    scale_fill_viridis_d(na.value = "grey", drop = FALSE) +
+    theme_void() +
+    labs(
+      subtitle = "2019",
+      fill = ""
+    )
+
+la_max_2021 <- find_max(la_transit, 2021) %>% 
+  ggplot(aes(fill = transit_type)) +
+    geom_sf(color = "black") +
+    coord_sf(xlim = c(-119.0, -117.6), ylim = c(33.6, 34.9)) +
+    scale_fill_viridis_d(na.value = "grey", drop = FALSE) +
+    theme_void() +
+    labs(subtitle = "2021")
+
+la_max <- ggarrange(la_max_2019, la_max_2021, common.legend = TRUE, legend = "bottom")
+annotate_figure(la_max, 
+                top = text_grob("Most-used transportation mode by PUMA\nin Los Angeles County, 2019-2021",
+                                face = "bold",
+                                size = 12))
+```
+
+Column
+------------------
+
+### Second place
+
+
+```{r}
+la_sec_2019 <- find_second(la_transit, 2019) %>% 
+  ggplot(aes(fill = transit_type)) +
+    geom_sf(color = "black") +
+    coord_sf(xlim = c(-119.0, -117.6), ylim = c(33.6, 34.9)) +
+    scale_fill_viridis_d(na.value = "grey", drop = FALSE) +
+    theme_void() +
+    labs(
+      subtitle = "2019",
+      fill = ""
+    )
+
+la_sec_2021 <- find_second(la_transit, 2021) %>% 
+  ggplot(aes(fill = transit_type)) +
+    geom_sf(color = "black") +
+    coord_sf(xlim = c(-119.0, -117.6), ylim = c(33.6, 34.9)) +
+    scale_fill_viridis_d(na.value = "grey", drop = FALSE) +
+    theme_void() +
+    labs(subtitle = "2021")
+
+la_sec <- ggarrange(la_sec_2019, la_sec_2021, common.legend = TRUE, legend = "bottom")
+annotate_figure(la_sec, 
+                top = text_grob("Second most-used transportation mode\nby PUMA in Los Angeles County, 2019-2021",
+                                face = "bold",
+                                size = 12))
+```
+
+Chicago {data-navmenu="Most-Used Modalities"}
+==================
+
+Column
+------------------
+
+### First place
+
+```{r}
+chi_max_2019 <- find_max(chicago_transit, 2019) %>% 
+  ggplot(aes(fill = transit_type)) +
+    geom_sf(color = "black") +
+    scale_fill_viridis_d(na.value = "grey", drop = FALSE) +
+    theme_void() +
+    labs(
+      subtitle = "2019",
+      fill = ""
+    )
+
+chi_max_2021 <- find_max(chicago_transit, 2021) %>% 
+  ggplot(aes(fill = transit_type)) +
+    geom_sf(color = "black") +
+    scale_fill_viridis_d(na.value = "grey", drop = FALSE) +
+    theme_void() +
+    labs(subtitle = "2021")
+
+chi_max <- ggarrange(chi_max_2019, chi_max_2021, common.legend = TRUE, legend = "bottom")
+annotate_figure(chi_max, 
+                top = text_grob("Most-used transportation mode by PUMA\nin Cook County, 2019-2021",
+                                face = "bold",
+                                size = 12))
+```
+
+Column
+------------------
+
+### Second place
+
+
+```{r}
+chi_sec_2019 <- find_second(chicago_transit, 2019) %>% 
+  ggplot(aes(fill = transit_type)) +
+    geom_sf(color = "black") +
+    scale_fill_viridis_d(na.value = "grey", drop = FALSE) +
+    theme_void() +
+    labs(
+      subtitle = "2019",
+      fill = ""
+    )
+
+chi_sec_2021 <- find_second(chicago_transit, 2021) %>% 
+  ggplot(aes(fill = transit_type)) +
+    geom_sf(color = "black") +
+    scale_fill_viridis_d(na.value = "grey", drop = FALSE) +
+    theme_void() +
+    labs(subtitle = "2021")
+
+chi_sec <- ggarrange(chi_sec_2019, chi_sec_2021, common.legend = TRUE, legend = "bottom")
+annotate_figure(chi_sec, 
+                top = text_grob("Second most-used transportation mode\nby PUMA in Cook County, 2019-2021",
+                                face = "bold",
+                                size = 12))
+```
+
 
 
 Active 1
