@@ -4,6 +4,7 @@ output:
   flexdashboard::flex_dashboard:
     orientation: columns
     vertical_layout: fill
+runtime: shiny
 ---
 
 ```{r setup, include=FALSE}
@@ -13,9 +14,10 @@ library(tidycensus)
 library(here)
 library(sf)
 library(ggpubr)
+library(plotly)
 ```
 
-```{r data-import, include=FALSE}
+```{r global, include=FALSE}
 # create data directory if it doesn't exist
 if(!dir.exists(here("data"))){
   dir.create(here("data"))
@@ -86,10 +88,11 @@ if(!file.exists(here("data", "county_transit.rds"))){
 }
 
 county_transit <- readRDS(here("data", "county_transit.rds"))
-```
 
+#--------------------
+#--------------------
 
-```{r calculate-transit, include=FALSE}
+# calculate raw change/change in percent
 calculate_change <- function(list_data, filtering_string){
   list_data %>% 
     # filter out county from state PUMAs
@@ -280,9 +283,7 @@ county_transit %>%
   theme(legend.position = "bottom")
 ```
 
-
-
-Los Angeles {data-navmenu="Most-Used Modalities"}
+Chicago {data-navmenu="Most-Used Modalities"}
 ==================
 
 ```{r find-first-second, include=FALSE}
@@ -329,7 +330,72 @@ find_second <- function(data, yr){
 Column
 ------------------
 
-### First place
+### Most-used
+
+```{r}
+chi_max_2019 <- find_max(chicago_transit, 2019) %>% 
+  ggplot(aes(fill = transit_type)) +
+    geom_sf(color = "black") +
+    scale_fill_viridis_d(na.value = "grey", drop = FALSE) +
+    theme_void() +
+    labs(
+      subtitle = "2019",
+      fill = ""
+    )
+
+chi_max_2021 <- find_max(chicago_transit, 2021) %>% 
+  ggplot(aes(fill = transit_type)) +
+    geom_sf(color = "black") +
+    scale_fill_viridis_d(na.value = "grey", drop = FALSE) +
+    theme_void() +
+    labs(subtitle = "2021")
+
+chi_max <- ggarrange(chi_max_2019, chi_max_2021, common.legend = TRUE, legend = "bottom")
+annotate_figure(chi_max, 
+                top = text_grob("Most-used transportation mode by PUMA\nin Cook County, 2019-2021",
+                                face = "bold",
+                                size = 12))
+```
+
+Column
+------------------
+
+### Second-most-used
+
+
+```{r}
+chi_sec_2019 <- find_second(chicago_transit, 2019) %>% 
+  ggplot(aes(fill = transit_type)) +
+    geom_sf(color = "black") +
+    scale_fill_viridis_d(na.value = "grey", drop = FALSE) +
+    theme_void() +
+    labs(
+      subtitle = "2019",
+      fill = ""
+    )
+
+chi_sec_2021 <- find_second(chicago_transit, 2021) %>% 
+  ggplot(aes(fill = transit_type)) +
+    geom_sf(color = "black") +
+    scale_fill_viridis_d(na.value = "grey", drop = FALSE) +
+    theme_void() +
+    labs(subtitle = "2021")
+
+chi_sec <- ggarrange(chi_sec_2019, chi_sec_2021, common.legend = TRUE, legend = "bottom")
+annotate_figure(chi_sec, 
+                top = text_grob("Second most-used transportation mode\nby PUMA in Cook County, 2019-2021",
+                                face = "bold",
+                                size = 12))
+```
+
+
+Los Angeles {data-navmenu="Most-Used Modalities"}
+==================
+
+Column
+------------------
+
+### Most-used
 
 ```{r}
 la_max_2019 <- find_max(la_transit, 2019) %>% 
@@ -361,7 +427,7 @@ annotate_figure(la_max,
 Column
 ------------------
 
-### Second place
+### Second-most-used
 
 
 ```{r}
@@ -391,78 +457,212 @@ annotate_figure(la_sec,
                                 size = 12))
 ```
 
-Chicago {data-navmenu="Most-Used Modalities"}
+
+
+Chicago {data-navmenu="Change in Transit Use"}
 ==================
+
+Column {.sidebar}
+------------------
+
+
+```{r}
+selectInput(
+  inputId = "location_input_chi",
+  label = "Choose a location:",
+  choices = c("Cook County" = "(Chicago City)|(Cook County)",
+              "City of Chicago" = "Chicago City",
+              "Suburban Cook County" = "Cook County")
+)
+
+selectInput(
+  inputId = "transit_input_chi",
+  label = "Choose a transit type:",
+  choices = c("Car" = "change_car",
+              "Work from home" = "change_wfh",
+              "Public transportation" = "change_transit")
+)
+```
+
 
 Column
 ------------------
 
-### First place
+### Change in raw ridership/use
 
 ```{r}
-chi_max_2019 <- find_max(chicago_transit, 2019) %>% 
-  ggplot(aes(fill = transit_type)) +
-    geom_sf(color = "black") +
-    scale_fill_viridis_d(na.value = "grey", drop = FALSE) +
-    theme_void() +
-    labs(
-      subtitle = "2019",
-      fill = ""
+renderPlotly({
+  chicago_change <- chicago_transit %>%
+    select(NAME, contains(input$transit_input_chi)) %>% 
+    filter(str_detect(NAME, input$location_input_chi)) %>% 
+    pivot_longer(cols = contains("change")) %>% 
+    mutate(
+      tooltip = NAME %>% 
+        str_replace("--", "\n - ") %>% 
+        str_replace(" PUMA(;|,) Illinois", "") %>% 
+        str_replace_all("Townships? ?", "") %>% 
+        str_replace_all(", |(?<!(North|South|East|West) )&", "\n - ")
     )
-
-chi_max_2021 <- find_max(chicago_transit, 2021) %>% 
-  ggplot(aes(fill = transit_type)) +
-    geom_sf(color = "black") +
-    scale_fill_viridis_d(na.value = "grey", drop = FALSE) +
-    theme_void() +
-    labs(subtitle = "2021")
-
-chi_max <- ggarrange(chi_max_2019, chi_max_2021, common.legend = TRUE, legend = "bottom")
-annotate_figure(chi_max, 
-                top = text_grob("Most-used transportation mode by PUMA\nin Cook County, 2019-2021",
-                                face = "bold",
-                                size = 12))
+  
+  p_perc <- chicago_change %>% 
+    filter(str_detect(name, "raw")) %>% 
+    ggplot(aes(fill = value, text = tooltip)) +
+      geom_sf(color = "black", lwd = 0.1) +
+      coord_sf(xlim = c(-88.3, -87.5), ylim = c(41.4, 42.2)) + 
+      scale_fill_viridis_c(name = "Use", option = "magma") +
+      theme_void() +
+      labs(
+        title = "Change in Raw Use"
+      )
+  
+  ggplotly(p_perc, tooltip = "text") %>% 
+    style(hoveron="fills") %>% 
+    layout(xaxis = list(range=c(-88.3, -87.5)),
+           yaxis = list(range=c(41.4, 42.2)))
+  
+})
 ```
 
 Column
 ------------------
 
-### Second place
-
+### Change in percent ridership/use
 
 ```{r}
-chi_sec_2019 <- find_second(chicago_transit, 2019) %>% 
-  ggplot(aes(fill = transit_type)) +
-    geom_sf(color = "black") +
-    scale_fill_viridis_d(na.value = "grey", drop = FALSE) +
-    theme_void() +
-    labs(
-      subtitle = "2019",
-      fill = ""
+renderPlotly({
+  chicago_change <- chicago_transit %>%
+    select(NAME, contains(input$transit_input_chi)) %>% 
+    filter(str_detect(NAME, input$location_input_chi)) %>% 
+    pivot_longer(cols = contains("change")) %>% 
+    mutate(
+      tooltip = NAME %>% 
+        str_replace("--", "\n - ") %>% 
+        str_replace(" PUMA(;|,) Illinois", "") %>% 
+        str_replace_all("Townships? ?", "") %>% 
+        str_replace_all(", |(?<!(North|South|East|West) )&", "\n - ")
     )
-
-chi_sec_2021 <- find_second(chicago_transit, 2021) %>% 
-  ggplot(aes(fill = transit_type)) +
-    geom_sf(color = "black") +
-    scale_fill_viridis_d(na.value = "grey", drop = FALSE) +
-    theme_void() +
-    labs(subtitle = "2021")
-
-chi_sec <- ggarrange(chi_sec_2019, chi_sec_2021, common.legend = TRUE, legend = "bottom")
-annotate_figure(chi_sec, 
-                top = text_grob("Second most-used transportation mode\nby PUMA in Cook County, 2019-2021",
-                                face = "bold",
-                                size = 12))
+  
+  p_perc <- chicago_change %>% 
+    filter(str_detect(name, "perc")) %>% 
+    ggplot(aes(fill = value, text = tooltip)) +
+      geom_sf(color = "black", lwd = 0.1) +
+      coord_sf(xlim = c(-88.3, -87.5), ylim = c(41.4, 42.2)) + 
+      scale_fill_viridis_c(name = "% Use", option = "magma") +
+      theme_void() +
+      labs(
+        title = "Change in % use"
+      )
+  
+  ggplotly(p_perc, tooltip = "text") %>% 
+    style(hoveron="fills") %>% 
+    layout(xaxis = list(range=c(-88.3, -87.5)),
+           yaxis = list(range=c(41.4, 42.2)))
+  
+})
 ```
 
 
-
-Active 1
+Los Angeles {data-navmenu="Change in Transit Use"}
 ==================
 
+Column {.sidebar}
+------------------
 
-Active 2
-==================
+
+```{r}
+selectInput(
+  inputId = "location_input_la",
+  label = "Choose a location:",
+  choices = c("Los Angeles County" = "Los Angeles County",
+              "Cities of Los Angeles & Long Beach" = "(LA City|Long Beach)",
+              "Suburban/Rural LA County" = "^((?!LA City|Long Beach).)*$")
+)
+
+selectInput(
+  inputId = "transit_input_la",
+  label = "Choose a transit type:",
+  choices = c("Car" = "change_car",
+              "Work from home" = "change_wfh",
+              "Public transportation" = "change_transit")
+)
+```
+
+
+Column
+------------------
+
+### Change in raw ridership/use
+
+```{r}
+renderPlotly({
+  la_change <- la_transit %>%
+    select(NAME, contains(input$transit_input_la)) %>% 
+    filter(str_detect(NAME, input$location_input_la)) %>% 
+    pivot_longer(cols = contains("change")) %>% 
+    mutate(
+      tooltip = NAME %>% 
+        str_replace("--", "\n - ") %>% 
+        str_replace(" PUMA(;|,) California", "") %>% 
+        str_replace_all("Cities ?", "") %>% 
+        str_replace_all(", |(?<!(North|South|East|West) )&", "\n - ")
+    )
+  
+  p_perc <- la_change %>% 
+    filter(str_detect(name, "raw")) %>% 
+    ggplot(aes(fill = value, text = tooltip)) +
+      geom_sf(color = "black", lwd = 0.1) +
+      coord_sf(xlim = c(-119.0, -117.6), ylim = c(33.6, 34.9)) +
+      scale_fill_viridis_c(name = "Use", option = "magma") +
+      theme_void() +
+      labs(
+        title = "Change in Raw Use"
+      )
+  
+  ggplotly(p_perc, tooltip = "text") %>% 
+    style(hoveron="fills") %>% 
+    layout(xaxis = list(range=c(-119.0, -117.6)),
+           yaxis = list(range=c(33.6, 34.9)))
+  
+})
+```
+
+Column
+------------------
+
+### Change in percent ridership/use
+
+```{r}
+renderPlotly({
+  la_change <- la_transit %>%
+    select(NAME, contains(input$transit_input_la)) %>% 
+    filter(str_detect(NAME, input$location_input_la)) %>% 
+    pivot_longer(cols = contains("change")) %>% 
+    mutate(
+      tooltip = NAME %>% 
+        str_replace("--", "\n - ") %>% 
+        str_replace(" PUMA(;|,) California", "") %>% 
+        str_replace_all("Cities ?", "") %>% 
+        str_replace_all(", |(?<!(North|South|East|West) )&", "\n - ")
+    )
+  
+  p_perc <- la_change %>% 
+    filter(str_detect(name, "perc")) %>% 
+    ggplot(aes(fill = value, text = tooltip)) +
+      geom_sf(color = "black", lwd = 0.1) +
+      coord_sf(xlim = c(-119.0, -117.6), ylim = c(33.6, 34.9)) +
+      scale_fill_viridis_c(name = "% Use", option = "magma") +
+      theme_void() +
+      labs(
+        title = "Change in % use"
+      )
+  
+  ggplotly(p_perc, tooltip = "text") %>% 
+    style(hoveron="fills") %>% 
+    layout(xaxis = list(range=c(-119.0, -117.6)),
+           yaxis = list(range=c(33.6, 34.9)))
+  
+})
+```
 
 
 Analysis
