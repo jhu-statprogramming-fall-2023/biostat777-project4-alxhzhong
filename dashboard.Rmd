@@ -158,8 +158,13 @@ The Data
 ==================
 
 
-Static 1
+Countywide Commute Modality
 ==================
+
+Column
+------------------
+
+### Percent Ridership by Modality
 
 ```{r}
 # add "other category"
@@ -195,10 +200,45 @@ county_transit %>%
       fill = "",
       caption =  "Data from American Community Survey 2019 & 2021\nNote: Data is incomplete"
     ) +
-  theme(
-    legend.position = "bottom"
-  )
+  theme(legend.position = "bottom")
 ```
+
+Column
+------------------
+
+### Raw Ridership by Modality
+
+```{r}
+county_transit %>% 
+  group_by(NAME, year) %>% 
+  mutate(
+    perc_use = estimate / max(estimate),
+    variable = factor(variable, 
+                      levels = c("car_users", "work_from_home", "transit_users", "other"),
+                      labels = c("Car", "Work from home", "Public transportation", "Other"))
+  ) %>% 
+  filter(variable != "total_workers") %>% 
+  ggplot(aes(x = year, y = estimate, color = variable)) +
+    geom_point() +
+    geom_line() +
+    facet_wrap(~NAME) +
+    theme_minimal() +
+    scale_x_continuous(breaks = c(2019, 2021)) +
+    scale_y_continuous(trans = "log10", 
+                       limits = c(1e5, 5e6),
+                       breaks = c(1e5, 2.5e5, 5e5, 7.5e5, 1e6, 2.5e6, 5e6),
+                       labels = scales::label_number(suffix = "K", scale = 1e-3)) +
+    scale_color_viridis_d() +
+    labs(
+      title = "Change in Commute Modality, 2019-2021",
+      x = "Year",
+      y = "Number of workers using __ to commute",
+      color = "",
+      caption =  "Data from American Community Survey 2019 & 2021\nNote: Data is incomplete; log(10) y-axis used"
+    ) +
+  theme(legend.position = "bottom")
+```
+
 
 
 Static 2
