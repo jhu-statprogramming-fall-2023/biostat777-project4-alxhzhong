@@ -129,6 +129,8 @@ calculate_change <- function(list_data, filtering_string){
 
 chicago_transit <- calculate_change(list(IL_2019, IL_2021), "(Chicago City)|(Cook County)")
 la_transit <- calculate_change(list(CA_2019, CA_2021), "Los Angeles County")
+
+rm(CA_2019, CA_2021, IL_2019, IL_2021)
 ```
 
 
@@ -141,14 +143,14 @@ The purpose of this dashboard is to compare changes in public transit use (and o
 
 **Where do the data come from?**
 
-The datasets used in this dashboard are from the 1-Year American Community Survey in 2019 and 2021. The data were obtained from the ACS using the tidycensus API in R.
+The datasets used in this dashboard are from the [1-Year American Community Survey (ACS)](https://www.census.gov/data/developers/data-sets/acs-1year.html) in [2019](https://www.census.gov/newsroom/press-kits/2020/acs-1year.html) and [2021](https://www.census.gov/newsroom/press-kits/2022/acs-1year.html). The data were obtained from the ACS using the [tidycensus](https://walker-data.com/tidycensus/) API in R.
 
 Row
 ------------------
 
 ### Navigating the dashboard
 
-**Give me a two-minute overview of this dashboard.**\n
+**Here's a two-minute overview of this dashboard:**\n
 
 <iframe width="560" height="315" src="https://www.youtube.com/embed/uBZ712Bv5jo?si=IE5FuScKlgTud7FL" frameborder="0" data-external="1"   allowfullscreen></iframe>
 
@@ -157,6 +159,43 @@ Row
 The Data
 ==================
 
+Column {.tabset .tabset-fade}
+------------------
+
+### Los Angeles 2019/2021 (PUMA-level)
+
+This dataset contains estimates of various transportation mode uses (car, public transit, and work from home) by 2010 Census [Public Use Microdata Area (PUMA)](https://www.census.gov/programs-surveys/geography/guidance/geo-areas/pumas.html#overview) in Los Angeles County, CA in 2019 and 2021.
+
+```{r}
+la_transit %>% 
+  st_drop_geometry() %>% 
+  DT::datatable(options = list(
+    pageLength = 25
+  ))
+```
+
+### Chicago 2019/2021 (PUMA-level)
+
+This dataset contains estimates of various transportation mode uses (car, public transit, and work from home) by 2010 Census [Public Use Microdata Area (PUMA)](https://www.census.gov/programs-surveys/geography/guidance/geo-areas/pumas.html#overview) in Cook County, IL in 2019 and 2021.
+
+```{r}
+chicago_transit %>% 
+  st_drop_geometry() %>% 
+  DT::datatable(options = list(
+    pageLength = 25
+  ))
+```
+
+### County-level (2019 and 2021)
+
+This dataset contains county-wide estimates of various transportation mode uses (car, public transit, and work from home) in Cook County, IL and Los Angeles County, CA in 2019 and 2021. 
+
+```{r}
+county_transit %>% 
+  DT::datatable(options = list(
+    bPaginate = FALSE
+  ))
+```
 
 Countywide Commute Modality
 ==================
@@ -166,7 +205,7 @@ Column
 
 ### Percent Ridership by Modality
 
-```{r}
+```{r add-other, include=FALSE}
 # add "other category"
 county_transit <- county_transit %>%
   select(-GEOID, -moe) %>% 
@@ -176,7 +215,9 @@ county_transit <- county_transit %>%
   map(.f = ~mutate(.x, perc_use = estimate / max(estimate)) %>% 
                 fill(NAME, year)) %>% 
   bind_rows()
+```
 
+```{r}
 # graph
 county_transit %>% 
   group_by(NAME, year) %>% 
