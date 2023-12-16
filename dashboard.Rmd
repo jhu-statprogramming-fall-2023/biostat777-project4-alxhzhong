@@ -12,6 +12,7 @@ library(tidyverse)
 library(tidycensus)
 library(here)
 library(sf)
+library(ggpubr)
 ```
 
 ```{r data-import, include=FALSE}
@@ -52,6 +53,9 @@ CA_2021 <- readRDS(here("data", "CA_2021_transit.rds"))
 IL_2019 <- readRDS(here("data", "IL_2019_transit.rds"))
 IL_2021 <- readRDS(here("data", "IL_2021_transit.rds"))
 
+# -------------------------------------------------------
+# -------------------------------------------------------
+
 # county-wide data
 if(!file.exists(here("data", "county_transit.rds"))){
   get_county_transit <- function(year_input, state_input, county_input){
@@ -82,6 +86,49 @@ if(!file.exists(here("data", "county_transit.rds"))){
 }
 
 county_transit <- readRDS(here("data", "county_transit.rds"))
+```
+
+
+```{r calculate-transit, include=FALSE}
+calculate_change <- function(list_data, filtering_string){
+  list_data %>% 
+    # filter out county from state PUMAs
+    map(
+      ~filter(.x, str_detect(NAME, filtering_string)) %>%
+        select(-moe)
+    ) %>%
+    # add year info to variable names in prep for pivot
+    map2(.y = c("2019", "2021"),
+         .f = ~mutate(.x, variable = str_c(variable, "_", .y))
+    ) %>% 
+    bind_rows() %>% 
+    pivot_wider(
+      names_from = "variable",
+      values_from = "estimate"
+    ) %>% 
+    # raw_change: absolute change in ridership
+    # perc_change: percent transit use in 2021 - percent transit use in 2019
+    mutate(
+      # transit
+      raw_change_transit = transit_users_2021 - transit_users_2019,
+      perc_transit_2019 = transit_users_2019/total_workers_2019 * 100,
+      perc_transit_2021 = transit_users_2021/total_workers_2021 * 100,
+      perc_change_transit = perc_transit_2021 - perc_transit_2019,
+      # car
+      raw_change_car = car_users_2021 - car_users_2019,
+      perc_car_2019 = car_users_2019/total_workers_2019 * 100,
+      perc_car_2021 = car_users_2021/total_workers_2021 * 100,
+      perc_change_car = perc_car_2021 - perc_car_2019,
+      # car
+      raw_change_wfh = work_from_home_2021 - work_from_home_2019,
+      perc_wfh_2019 = work_from_home_2019/total_workers_2019 * 100,
+      perc_wfh_2021 = work_from_home_2021/total_workers_2021 * 100,
+      perc_change_wfh = perc_wfh_2021 - perc_wfh_2019,
+    )
+}
+
+chicago_transit <- calculate_change(list(IL_2019, IL_2021), "(Chicago City)|(Cook County)")
+la_transit <- calculate_change(list(CA_2019, CA_2021), "Los Angeles County")
 ```
 
 
@@ -168,5 +215,105 @@ Active 2
 
 Analysis
 ==================
+
+Column
+------------------
+
+### Change in Countywide Public Transit Ridership
+
+```{r}
+county_transit %>% 
+  filter(variable == "transit_users") %>% 
+  ggplot(aes(x = year, y = estimate, color = NAME)) +
+    geom_point() +
+    geom_ribbon(aes(ymin = 0, ymax = estimate, fill = NAME), alpha = .3) +
+    theme_minimal() +
+    scale_x_continuous(breaks = c(2019, 2021)) +
+    scale_y_continuous(limits = c(0, 500000),
+                       labels = scales::label_number(suffix = "K", scale = 1e-3)) +
+    scale_color_discrete(guide = "none") +
+    labs(
+      title = "Change in Public Transit Ridership, 2019-2021",
+      subtitle = "Cook County (Chicago) sees steeper decline over pandemic\nthan Los Angeles County",
+      x = "Year",
+      y = "Ridership (in thousands)",
+      fill = "",
+      caption =  "Data from American Community Survey 2019 & 2021\nNote: Data is incomplete"
+    ) +
+    theme(
+      legend.position = "bottom"
+    )
+```
+
+Column {.tabset .tabset-fade}
+------------------
+
+### Change in Transit Ridership by PUMA
+
+```{r}
+# raw ridership
+# Chicago
+chi_raw <- chicago_transit %>% 
+  select(NAME, contains("transit_users")) %>% 
+  pivot_longer(cols = contains("transit_users")) %>% 
+  mutate(name = str_replace_all(name, "transit_users_", "")) %>% 
+  ggplot(aes(fill = value)) +
+    geom_sf(color = "black") +
+    facet_wrap(~name) +
+    scale_fill_viridis_c(name = "Public transit\nridership", option = "magma") +
+    theme_void() +
+    labs(
+      subtitle = "Cook County, IL (Chicago)"
+    )
+
+# Los Angeles
+la_raw <- la_transit %>% 
+  select(NAME, contains("transit_users")) %>% 
+  pivot_longer(cols = contains("transit_users")) %>%
+  mutate(name = str_replace_all(name, "transit_users_", "")) %>%
+  ggplot(aes(fill = value)) +
+    geom_sf(color = "black") +
+    facet_wrap(~name) +
+    scale_fill_viridis_c(name = "Public transit\nridership", option = "magma") +
+    coord_sf(xlim = c(-119.0, -117.6), ylim = c(33.6, 34.9)) +
+    theme_void() +
+    labs(
+      subtitle = "Los Angeles County, CA"
+    )
+
+raw_plot <- ggarrange(chi_raw, la_raw, ncol = 1, nrow = 2)
+
+annotate_figure(raw_plot, 
+                top = text_grob("Number of Workers Using Public Transit\nto Commute in Chicago and LA, 2019-2021",
+                                face = "bold",
+                                size = 12))
+```
+
+### Change in Percent Transit Ridership by PUMA
+
+```{r}
+chi_perc <- chicago_transit %>% 
+  ggplot(aes(fill = perc_change_transit)) +
+    geom_sf(color = "black") +
+    scale_fill_viridis_c(name = "Change in\n% transit use", option = "magma", limits = c(-40,0)) +
+  theme_void() +
+  labs(subtitle = "Cook County, IL (Chicago)")
+
+
+la_perc <- la_transit %>% 
+  ggplot(aes(fill = perc_change_transit)) +
+    geom_sf(color = "black") +
+    scale_fill_viridis_c(name = "Change in\n% transit use", option = "magma", limits = c(-40,0)) +
+    coord_sf(xlim = c(-119.0, -117.6), ylim = c(33.6, 34.9)) +
+    theme_void() +
+    labs(subtitle = "Los Angeles County, CA")
+
+perc_plot <- ggarrange(chi_perc, la_perc, ncol = 2, nrow = 1, common.legend = TRUE, legend = "right")
+
+annotate_figure(perc_plot, 
+                top = text_grob("Change in Percent of Workers Using Public Transit\nto Commute in Chicago and LA, 2019-2021",
+                                face = "bold",
+                                size = 12))
+```
 
 
