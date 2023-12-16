@@ -4,6 +4,7 @@ output:
   flexdashboard::flex_dashboard:
     orientation: columns
     vertical_layout: fill
+    source_code: embed
 runtime: shiny
 ---
 
@@ -156,7 +157,6 @@ Row
 **Here's a two-minute overview of this dashboard:**\n
 
 <iframe width="560" height="315" src="https://www.youtube.com/embed/uBZ712Bv5jo?si=IE5FuScKlgTud7FL" frameborder="0" data-external="1"   allowfullscreen></iframe>
-
 
 
 The Data
