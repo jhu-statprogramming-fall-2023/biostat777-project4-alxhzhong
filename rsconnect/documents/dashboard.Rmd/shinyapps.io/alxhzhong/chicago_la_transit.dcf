@@ -1,0 +1,12 @@
+name: chicago_la_transit
+title: chicago_la_transit
+username: alxhzhong
+account: alxhzhong
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 10811909
+bundleId: 8056869
+url: https://alxhzhong.shinyapps.io/chicago_la_transit/
+version: 1
+asMultiple: FALSE
+asStatic: FALSE
