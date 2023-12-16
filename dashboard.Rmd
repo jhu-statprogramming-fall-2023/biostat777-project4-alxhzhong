@@ -1,0 +1,172 @@
+---
+title: "Transit in LA and Chicago"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: columns
+    vertical_layout: fill
+---
+
+```{r setup, include=FALSE}
+library(flexdashboard)
+library(tidyverse)
+library(tidycensus)
+library(here)
+library(sf)
+```
+
+```{r data-import, include=FALSE}
+# create data directory if it doesn't exist
+if(!dir.exists(here("data"))){
+  dir.create(here("data"))
+}
+
+# PUMA data
+if(!file.exists(here("data", "CA_2019_transit.rds"))){
+  get_acs_transit <- function(year_input, state_input){
+    # use tidycensus API to extract transit users and total worker pop
+    get_acs(geography = "public use microdata area",
+            variables = paste("B08006", sprintf("%03d", c(1,2,8,17)), sep = "_"),
+            year = year_input,
+            state = state_input,
+            geometry = TRUE,
+            survey = "acs1") %>% 
+      # change variables names to be more descriptive
+      mutate(
+        variable = str_replace_all(variable, "B08006_001", "total_workers"),
+        variable = str_replace_all(variable, "B08006_002", "car_users"),
+        variable = str_replace_all(variable, "B08006_008", "transit_users"),
+        variable = str_replace_all(variable, "B08006_017", "work_from_home")) %>%
+      # save as RDS file
+      saveRDS(file = here("data", paste0(paste(state_input, year_input, "transit", sep = "_"), ".rds")))
+  }
+
+  # iterate over combinations of states/years
+  state_years <- expand_grid(states = c("CA", "IL"),
+                             years = c(2019, 2021))
+  walk2(.x = state_years$years, .y = state_years$states, get_acs_transit)
+}
+
+# load datasets
+CA_2019 <- readRDS(here("data", "CA_2019_transit.rds"))
+CA_2021 <- readRDS(here("data", "CA_2021_transit.rds"))
+IL_2019 <- readRDS(here("data", "IL_2019_transit.rds"))
+IL_2021 <- readRDS(here("data", "IL_2021_transit.rds"))
+
+# county-wide data
+if(!file.exists(here("data", "county_transit.rds"))){
+  get_county_transit <- function(year_input, state_input, county_input){
+    get_acs(geography = "county",
+            variables = paste("B08006", sprintf("%03d", c(1,2,8,17)), sep = "_"),
+            year = year_input,
+            state = state_input,
+            county = county_input,
+            survey = "acs1") %>% 
+      # change variables names to be more descriptive
+      mutate(
+        variable = str_replace_all(variable, "B08006_001", "total_workers"),
+        variable = str_replace_all(variable, "B08006_002", "car_users"),
+        variable = str_replace_all(variable, "B08006_008", "transit_users"),
+        variable = str_replace_all(variable, "B08006_017", "work_from_home"),
+        year = year_input
+      )
+  }
+  county_years <- expand_grid(states = c("CA", "IL"),
+                             years = c(2019, 2021)) %>% 
+                 cbind(counties = c("Los Angeles", "Los Angeles", "Cook", "Cook"))
+  pmap(.l = list(county_years$years, 
+                 county_years$states, 
+                 county_years$counties), 
+       .f = get_county_transit) %>% 
+  bind_rows() %>%
+  saveRDS(file = here("data", "county_transit.rds"))
+}
+
+county_transit <- readRDS(here("data", "county_transit.rds"))
+```
+
+
+About {data-orientation=rows}
+==================
+
+**What is the purpose of this dashboard?**
+
+The purpose of this dashboard is to compare changes in public transit use (and other forms of transportation) over the pandemic in Los Angeles, CA and Chicago, IL.
+
+**Where do the data come from?**
+
+The datasets used in this dashboard are from the 1-Year American Community Survey in 2019 and 2021. The data were obtained from the ACS using the tidycensus API in R.
+
+Row
+------------------
+
+### Navigating the dashboard
+
+**Give me a two-minute overview of this dashboard.**\n
+
+<iframe width="560" height="315" src="https://www.youtube.com/embed/uBZ712Bv5jo?si=IE5FuScKlgTud7FL" frameborder="0" data-external="1"   allowfullscreen></iframe>
+
+
+
+The Data
+==================
+
+
+Static 1
+==================
+
+```{r}
+# add "other category"
+county_transit <- county_transit %>%
+  select(-GEOID, -moe) %>% 
+  split(~NAME + year) %>% 
+  map(.f = ~add_row(.x, variable = "other",
+                    estimate = 2*max(.x$estimate) - sum(.x$estimate))) %>% 
+  map(.f = ~mutate(.x, perc_use = estimate / max(estimate)) %>% 
+                fill(NAME, year)) %>% 
+  bind_rows()
+
+# graph
+county_transit %>% 
+  group_by(NAME, year) %>% 
+  mutate(
+    perc_use = estimate / max(estimate),
+    variable = factor(variable, 
+                      levels = c("car_users", "work_from_home", "transit_users", "other"),
+                      labels = c("Car", "Work from home", "Public transportation", "Other"))
+  ) %>% 
+  filter(variable != "total_workers") %>% 
+  ggplot(aes(x = year, y = perc_use, fill = variable)) +
+    geom_area() +
+    facet_wrap(~NAME) +
+    theme_minimal() +
+    scale_x_continuous(breaks = c(2019, 2021)) +
+    scale_fill_viridis_d() +
+    labs(
+      title = "Change in Commute Modality, 2019-2021",
+      x = "Year",
+      y = "% workers using __ to commute",
+      fill = "",
+      caption =  "Data from American Community Survey 2019 & 2021\nNote: Data is incomplete"
+    ) +
+  theme(
+    legend.position = "bottom"
+  )
+```
+
+
+Static 2
+==================
+
+
+Active 1
+==================
+
+
+Active 2
+==================
+
+
+Analysis
+==================
+
+
