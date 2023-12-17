@@ -1,4 +1,4 @@
-# Statistical Computing, Project 4
+# JHU Statistical Programming, Project 4
 
 Hello! This dashboard explores changes in transportation mode use in Chicago and Los Angeles over the pandemic (2019-2021). 
 
