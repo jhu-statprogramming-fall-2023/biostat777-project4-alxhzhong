@@ -1,11 +1,17 @@
 ---
 title: "Transit in LA and Chicago"
-output: 
+output:
   flexdashboard::flex_dashboard:
     orientation: columns
     vertical_layout: fill
     source_code: embed
 runtime: shiny
+resource_files:
+- data/CA_2019_transit.rds
+- data/CA_2021_transit.rds
+- data/county_transit.rds
+- data/IL_2019_transit.rds
+- data/IL_2021_transit.rds
 ---
 
 ```{r setup, include=FALSE}
