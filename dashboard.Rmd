@@ -137,8 +137,14 @@ calculate_change <- function(list_data, filtering_string){
     )
 }
 
-chicago_transit <- calculate_change(list(IL_2019, IL_2021), "(Chicago City)|(Cook County)")
-la_transit <- calculate_change(list(CA_2019, CA_2021), "Los Angeles County")
+chicago_transit <- calculate_change(list(IL_2019, IL_2021), "(Chicago City)|(Cook County)") %>% 
+  mutate(
+    urban = str_detect(NAME, "Chicago City")*1
+  )
+la_transit <- calculate_change(list(CA_2019, CA_2021), "Los Angeles County") %>% 
+  mutate(
+    urban = str_detect(NAME, "(LA City|Long Beach)")*1
+  )
 
 rm(CA_2019, CA_2021, IL_2019, IL_2021)
 ```
@@ -476,9 +482,9 @@ Column {.sidebar}
 selectInput(
   inputId = "location_input_chi",
   label = "Choose a location:",
-  choices = c("Cook County" = "(Chicago City)|(Cook County)",
-              "City of Chicago" = "Chicago City",
-              "Suburban Cook County" = "Cook County")
+  choices = c("Cook County" = "-1",
+              "City of Chicago" = "0",
+              "Suburban Cook County" = "1")
 )
 
 selectInput(
@@ -499,8 +505,8 @@ Column
 ```{r}
 renderPlotly({
   chicago_change <- chicago_transit %>%
+    filter(urban != as.numeric(input$location_input_chi)) %>% 
     select(NAME, contains(input$transit_input_chi)) %>% 
-    filter(str_detect(NAME, input$location_input_chi)) %>% 
     pivot_longer(cols = contains("change")) %>% 
     mutate(
       tooltip = NAME %>% 
@@ -537,8 +543,8 @@ Column
 ```{r}
 renderPlotly({
   chicago_change <- chicago_transit %>%
-    select(NAME, contains(input$transit_input_chi)) %>% 
-    filter(str_detect(NAME, input$location_input_chi)) %>% 
+    filter(urban != as.numeric(input$location_input_chi)) %>% 
+    select(NAME, contains(input$transit_input_chi)) %>%
     pivot_longer(cols = contains("change")) %>% 
     mutate(
       tooltip = NAME %>% 
@@ -579,9 +585,9 @@ Column {.sidebar}
 selectInput(
   inputId = "location_input_la",
   label = "Choose a location:",
-  choices = c("Los Angeles County" = "Los Angeles County",
-              "Cities of Los Angeles & Long Beach" = "(LA City|Long Beach)",
-              "Suburban/Rural LA County" = "^((?!LA City|Long Beach).)*$")
+  choices = c("Los Angeles County" = "-1",
+              "Cities of Los Angeles & Long Beach" = "0",
+              "Suburban/Rural LA County" = "1")
 )
 
 selectInput(
@@ -602,8 +608,8 @@ Column
 ```{r}
 renderPlotly({
   la_change <- la_transit %>%
+    filter(urban != as.numeric(input$location_input_la)) %>% 
     select(NAME, contains(input$transit_input_la)) %>% 
-    filter(str_detect(NAME, input$location_input_la)) %>% 
     pivot_longer(cols = contains("change")) %>% 
     mutate(
       tooltip = NAME %>% 
@@ -640,8 +646,8 @@ Column
 ```{r}
 renderPlotly({
   la_change <- la_transit %>%
+    filter(urban != as.numeric(input$location_input_la)) %>% 
     select(NAME, contains(input$transit_input_la)) %>% 
-    filter(str_detect(NAME, input$location_input_la)) %>% 
     pivot_longer(cols = contains("change")) %>% 
     mutate(
       tooltip = NAME %>% 
@@ -668,6 +674,50 @@ renderPlotly({
            yaxis = list(range=c(33.6, 34.9)))
   
 })
+```
+
+
+Basic Stats {data-navmenu="Change in Transit Use"}
+==================
+
+Column {.sidebar}
+------------------
+
+```{r}
+selectInput(
+  inputId = "location_input_all",
+  label = "Choose a location:",
+  choices = c("County-wide" = "-1",
+              "Urban" = "0",
+              "Suburban/Rural" = "1")
+)
+
+selectInput(
+  inputId = "transit_input_all",
+  label = "Choose a transit type:",
+  choices = c("Car" = "change_car",
+              "Work from home" = "change_wfh",
+              "Public transportation" = "change_transit")
+)
+```
+
+Column
+------------------
+
+### Chicago
+
+```{r}
+
+```
+
+
+Column
+------------------
+
+### Los Angeles
+
+```{r}
+
 ```
 
 
