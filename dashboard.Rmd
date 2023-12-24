@@ -239,7 +239,7 @@ county_transit <- county_transit %>%
 county_transit %>% 
   group_by(NAME, year) %>% 
   mutate(
-    perc_use = estimate / max(estimate),
+    perc_use = estimate / max(estimate) * 100,
     variable = factor(variable, 
                       levels = c("car_users", "work_from_home", "transit_users", "other"),
                       labels = c("Car", "Work from home", "Public transportation", "Other"))
