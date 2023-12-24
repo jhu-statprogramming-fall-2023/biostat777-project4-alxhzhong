@@ -16,6 +16,8 @@ resource_files:
 
 ```{r setup, include=FALSE}
 library(flexdashboard)
+library(shinydashboard)
+library(shiny)
 library(tidyverse)
 library(tidycensus)
 library(here)
@@ -477,12 +479,11 @@ Chicago {data-navmenu="Change in Transit Use"}
 Column {.sidebar}
 ------------------
 
-
 ```{r}
 selectInput(
   inputId = "location_input_chi",
   label = "Choose a location:",
-  choices = c("Cook County" = "-1",
+  choices = c("Cook County" = "100",
               "City of Chicago" = "0",
               "Suburban Cook County" = "1")
 )
@@ -504,7 +505,7 @@ Column
 
 ```{r}
 renderPlotly({
-  chicago_change <- chicago_transit %>%
+  p_chicago_change <- chicago_transit %>%
     filter(urban != as.numeric(input$location_input_chi)) %>% 
     select(NAME, contains(input$transit_input_chi)) %>% 
     pivot_longer(cols = contains("change")) %>% 
@@ -516,7 +517,7 @@ renderPlotly({
         str_replace_all(", |(?<!(North|South|East|West) )&", "\n - ")
     )
   
-  p_perc <- chicago_change %>% 
+  p_perc <- p_chicago_change %>% 
     filter(str_detect(name, "raw")) %>% 
     ggplot(aes(fill = value, text = tooltip)) +
       geom_sf(color = "black", lwd = 0.1) +
@@ -542,7 +543,7 @@ Column
 
 ```{r}
 renderPlotly({
-  chicago_change <- chicago_transit %>%
+  p_chicago_change <- chicago_transit %>%
     filter(urban != as.numeric(input$location_input_chi)) %>% 
     select(NAME, contains(input$transit_input_chi)) %>%
     pivot_longer(cols = contains("change")) %>% 
@@ -554,7 +555,7 @@ renderPlotly({
         str_replace_all(", |(?<!(North|South|East|West) )&", "\n - ")
     )
   
-  p_perc <- chicago_change %>% 
+  p_perc <- p_chicago_change %>% 
     filter(str_detect(name, "perc")) %>% 
     ggplot(aes(fill = value, text = tooltip)) +
       geom_sf(color = "black", lwd = 0.1) +
@@ -585,7 +586,7 @@ Column {.sidebar}
 selectInput(
   inputId = "location_input_la",
   label = "Choose a location:",
-  choices = c("Los Angeles County" = "-1",
+  choices = c("Los Angeles County" = "100",
               "Cities of Los Angeles & Long Beach" = "0",
               "Suburban/Rural LA County" = "1")
 )
@@ -607,7 +608,7 @@ Column
 
 ```{r}
 renderPlotly({
-  la_change <- la_transit %>%
+  p_la_change <- la_transit %>%
     filter(urban != as.numeric(input$location_input_la)) %>% 
     select(NAME, contains(input$transit_input_la)) %>% 
     pivot_longer(cols = contains("change")) %>% 
@@ -619,7 +620,7 @@ renderPlotly({
         str_replace_all(", |(?<!(North|South|East|West) )&", "\n - ")
     )
   
-  p_perc <- la_change %>% 
+  p_perc <- p_la_change %>% 
     filter(str_detect(name, "raw")) %>% 
     ggplot(aes(fill = value, text = tooltip)) +
       geom_sf(color = "black", lwd = 0.1) +
@@ -645,7 +646,7 @@ Column
 
 ```{r}
 renderPlotly({
-  la_change <- la_transit %>%
+  p_la_change <- la_transit %>%
     filter(urban != as.numeric(input$location_input_la)) %>% 
     select(NAME, contains(input$transit_input_la)) %>% 
     pivot_longer(cols = contains("change")) %>% 
@@ -657,7 +658,7 @@ renderPlotly({
         str_replace_all(", |(?<!(North|South|East|West) )&", "\n - ")
     )
   
-  p_perc <- la_change %>% 
+  p_perc <- p_la_change %>% 
     filter(str_detect(name, "perc")) %>% 
     ggplot(aes(fill = value, text = tooltip)) +
       geom_sf(color = "black", lwd = 0.1) +
@@ -687,7 +688,7 @@ Column {.sidebar}
 selectInput(
   inputId = "location_input_all",
   label = "Choose a location:",
-  choices = c("County-wide" = "-1",
+  choices = c("County-wide" = "100",
               "Urban" = "0",
               "Suburban/Rural" = "1")
 )
@@ -707,9 +708,113 @@ Column
 ### Chicago
 
 ```{r}
+chicago_change <- reactive({chicago_transit %>%
+    filter(urban != as.numeric(input$location_input_all)) %>% 
+    select(NAME, contains(input$transit_input_all)) %>% 
+    drop_na() %>% 
+    st_drop_geometry()})
 
+la_change <- reactive({la_transit %>% 
+    filter(urban != as.numeric(input$location_input_all)) %>% 
+    select(NAME, contains(input$transit_input_all)) %>% 
+    drop_na() %>% 
+    st_drop_geometry()})
+
+transit_type <- reactive({
+  case_when(
+    input$transit_input_all == "change_car" ~ "using cars",
+    input$transit_input_all == "change_wfh" ~ "working from home",
+    input$transit_input_all == "change_transit" ~ "using public transit"
+  )})
 ```
 
+```{r}
+output$chi_1 = renderText({
+  total_chi = chicago_transit %>% 
+    filter(urban != as.numeric(input$location_input_all)) %>% 
+    nrow()
+  
+  paste("There are", nrow(chicago_change()), "PUMAS out of", total_chi, "with 2019-2021 change data.")
+  })
+
+textOutput(outputId = "chi_1", inline = TRUE)
+```
+
+<br/>
+
+```{r}
+output$chi_2 = renderText({
+  raw_change_chi = chicago_change() %>% 
+    select(contains("raw")) %>% 
+    sum() %>% 
+    sprintf("%+d", .)
+  
+  paste("The total raw change in", transit_type(), "is", raw_change_chi, "people.")
+  
+  })
+
+textOutput(outputId = "chi_2", inline = TRUE)
+```
+
+<br/>
+
+```{r}
+output$chi_3 = renderText({
+  avg_perc_change_chi = chicago_change() %>% 
+    select(contains("perc")) %>% 
+    colMeans() %>% 
+    round(1)
+  
+  avg_change_dir_chi = case_when(
+    avg_perc_change_chi >= 0 ~ "to",
+    avg_perc_change_chi < 0 ~ "away from"
+  )
+  
+  paste0("On average, ", avg_perc_change_chi, "% of people switched ", avg_change_dir_chi, " ", transit_type(), ".")
+})
+
+textOutput(outputId = "chi_3", inline = TRUE)
+```
+
+<br/>
+
+```{r}
+output$chi_4 = renderText({
+  largest_change_chi = chicago_change() %>% 
+    select(NAME, value = contains("perc")) %>% 
+    slice_max(value)
+  
+  large_dir_chi = case_when(
+    largest_change_chi$value >= 0 ~ "largest increase",
+    largest_change_chi$value < 0 ~ "smallest decrease"
+  )
+  
+  paste0("The PUMA with the ", large_dir_chi, " in ", transit_type(), " is ", largest_change_chi$NAME, " (", round(largest_change_chi$value, 1), "%).")
+  
+  })
+
+textOutput(outputId = "chi_4", inline = TRUE)
+```
+
+<br/>
+
+```{r}
+output$chi_5 = renderText({
+  smallest_change_chi = chicago_change() %>% 
+    select(NAME, value = contains("perc")) %>% 
+    slice_min(value)
+  
+  small_dir_chi = case_when(
+    smallest_change_chi$value <= 0 ~ "largest decrease",
+    smallest_change_chi$value > 0 ~ "smallest increase"
+  )
+  
+  paste0("The PUMA with the ", small_dir_chi, " in ", transit_type(), " is ", smallest_change_chi$NAME, " (", round(smallest_change_chi$value, 1), "%).")
+  
+  })
+
+textOutput(outputId = "chi_5", inline = TRUE)
+```
 
 Column
 ------------------
@@ -717,9 +822,92 @@ Column
 ### Los Angeles
 
 ```{r}
+output$la_1 = renderText({
+  total_la = la_transit %>% 
+    filter(urban != as.numeric(input$location_input_all)) %>% 
+    nrow()
+  
+  paste("There are", nrow(la_change()), "PUMAS out of", total_la, "with 2019-2021 change data.")
+  })
 
+textOutput(outputId = "la_1", inline = TRUE)
 ```
 
+<br/>
+
+```{r}
+output$la_2 = renderText({
+  raw_change_la = la_change() %>% 
+    select(contains("raw")) %>% 
+    sum() %>% 
+    sprintf("%+d", .)
+  
+  paste("The total raw change in", transit_type(), "is", raw_change_la, "people.")
+  
+  })
+
+textOutput(outputId = "la_2", inline = TRUE)
+```
+
+<br/>
+
+```{r}
+output$la_3 = renderText({
+  avg_perc_change_la = la_change() %>% 
+    select(contains("perc")) %>% 
+    colMeans() %>% 
+    round(1)
+  
+  avg_change_dir_la = case_when(
+    avg_perc_change_la >= 0 ~ "to",
+    avg_perc_change_la < 0 ~ "away from"
+  )
+  
+  paste0("On average, ", avg_perc_change_la, "% of people switched ", avg_change_dir_la, " ", transit_type(), ".")
+})
+
+textOutput(outputId = "la_3", inline = TRUE)
+```
+
+<br/>
+
+```{r}
+output$la_4 = renderText({
+  largest_change_la = la_change() %>% 
+    select(NAME, value = contains("perc")) %>% 
+    slice_max(value)
+  
+  large_dir_la = case_when(
+    largest_change_la$value >= 0 ~ "largest increase",
+    largest_change_la$value < 0 ~ "smallest decrease"
+  )
+  
+  paste0("The PUMA with the ", large_dir_la, " in ", transit_type(), " is ", largest_change_la$NAME, " (", round(largest_change_la$value, 1), "%).")
+  
+  })
+
+textOutput(outputId = "la_4", inline = TRUE)
+```
+
+<br/>
+
+```{r}
+output$la_5 = renderText({
+  smallest_change_la = la_change() %>% 
+    select(NAME, value = contains("perc")) %>% 
+    slice_min(value)
+  
+  small_dir_la = case_when(
+    smallest_change_la$value <= 0 ~ "largest decrease",
+    smallest_change_la$value > 0 ~ "smallest increase"
+  )
+  
+  paste0("The PUMA with the ", small_dir_la, " in ", transit_type(), " is ", smallest_change_la$NAME, " (", round(smallest_change_la$value, 1), "%).")
+  
+  })
+
+textOutput(outputId = "la_5", inline = TRUE)
+```
 
 Analysis
 ==================
